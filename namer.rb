@@ -83,7 +83,7 @@ end
 
 class CLIArgs
 
-  def sites(doit_defined = false, proper_defined = false)
+  def sites
 
     argument_length        = ARGV.length
     argument_offset        = 0
