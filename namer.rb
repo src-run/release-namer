@@ -142,13 +142,13 @@ def main
 
   cliargs = CLIArgs.new
 
-  repeater = cliargs.repeater    || 1
-  proper   = cliargs.proper_name || false
-  sites    = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
+  do_it  = cliargs.repeater    || 1
+  proper = cliargs.proper_name || false
+  sites  = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
 
   namer = ReleaseNamer.new(sites, proper)
 
-  repeater.times do |_x|
+  do_it.times do |_x|
     puts namer.suggestion
   end
 
