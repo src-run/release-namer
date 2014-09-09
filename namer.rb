@@ -4,12 +4,16 @@ require 'open-uri'
 require 'nokogiri'
 
 class ReleaseNamer
-  def initialize(source, proper = nil)
+
+  def initialize(sites, proper = nil)
     @proper = proper
-    page = open(source) { |f| f.read }
-    dom = Nokogiri.HTML(page)
-    dom.css('head,script,style,code').map { |l| l.unlink }
-    @text = dom.text
+    @text   = String.new
+    for site in sites
+      source = open(site) { |f| f.read }
+      dom = Nokogiri.HTML(source)
+      dom.css('head,script,style,code').map { |l| l.unlink }
+      @text += dom.text
+    end
   end
 
   def suggestion
@@ -74,26 +78,82 @@ class ReleaseNamer
   def nouns
     @nouns ||= get_noun_list
   end
+
 end
 
-def repeater
-  arg = ARGV.find { |x| x.match(/suggestions/) }
-  return arg if arg.nil?
-  arg.split(/=/).last.to_i
+class CLIArgs
+
+  def sites
+
+    argument_length = ARGV.length
+    argument_offset = 0
+
+    if @proper_defined == true
+      argument_offset += 1
+    end
+
+    if @repeater_defined == true
+      argument_offset += 1
+    end
+
+    sites = Array.new
+
+    while ARGV[argument_offset]
+      sites << ARGV[argument_offset]
+      argument_offset += 1
+    end
+
+    return false if sites.length == 0
+    return sites
+
+  end
+
+  def proper_name
+
+    arg = ARGV.find { |x| x.match(/proper/) }
+    
+    if arg.nil?
+      @proper_defined = false
+      return arg
+    else
+      @proper_defined = true
+      return !!arg.split(/=/).last
+    end
+  
+  end
+
+  def repeater
+  
+    arg = ARGV.find { |x| x.match(/suggestions/) }
+  
+    if arg.nil?
+      @repeater_defined = false
+      return arg
+    else
+      @repeater_defined = true
+      return arg.split(/=/).last.to_i
+    end
+  
+  end
+
 end
 
-def proper_name
-  arg = ARGV.find { |x| x.match(/proper/) }
-  return arg if arg.nil?
-  !!arg.split(/=/).last
+def main
+
+  cliargs = CLIArgs.new
+
+  do_it  = cliargs.repeater    || 1
+  proper = cliargs.proper_name || false
+  sites  = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
+
+  namer = ReleaseNamer.new(sites, proper)
+
+  do_it.times do |_x|
+    puts namer.suggestion
+  end
+
 end
 
-site = ARGV.last
-do_it = repeater || 1
-proper = proper_name || false
+main
 
-namer = ReleaseNamer.new(site, proper)
-
-do_it.times do |_x|
-  puts namer.suggestion
-end
+## EOF
