@@ -13,7 +13,7 @@ gem install nokogiri
 
 ## Simple Usage
 
-With no arguments, one suggestion will be returned using the argument defaults. When no website is passed, it defaults to (Special:Random)[http://en.wikipedia.org/wiki/Special:Random] which loads a random article from Wikipedia.
+With no arguments, one suggestion will be returned using the argument defaults. When no website is passed, it defaults to [Special:Random](http://en.wikipedia.org/wiki/Special:Random) which loads a random article from Wikipedia.
 
 ```bash
 ruby namer.rb
