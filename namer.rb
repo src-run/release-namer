@@ -85,8 +85,8 @@ class CLIArgs
 
   def sites
 
-    argument_length        = ARGV.length
-    argument_offset        = 0
+    argument_length = ARGV.length
+    argument_offset = 0
 
     if @proper_defined == true
       argument_offset += 1
@@ -138,16 +138,22 @@ class CLIArgs
 
 end
 
-cliargs = CLIArgs.new
+def main
 
-do_it  = cliargs.repeater    || 1
-proper = cliargs.proper_name || false
-sites  = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
+  cliargs = CLIArgs.new
 
-namer = ReleaseNamer.new(sites, proper)
+  repeater = cliargs.repeater    || 1
+  proper   = cliargs.proper_name || false
+  sites    = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
 
-do_it.times do |_x|
-  puts namer.suggestion
+  namer = ReleaseNamer.new(sites, proper)
+
+  repeater.times do |_x|
+    puts namer.suggestion
+  end
+
 end
+
+main
 
 ## EOF
