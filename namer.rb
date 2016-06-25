@@ -1,6 +1,16 @@
-# encoding: utf-8
+#!/usr/bin/env ruby
+
+##
+## Release Namer
+##
+## @license: MIT License
+## @author : Dan Corrigan <github.com/dcorrigan>
+##
+
+require 'optparse'
 require 'rbtagger'
 require 'open-uri'
+require 'open_uri_redirections'
 require 'nokogiri'
 
 class ReleaseNamer
@@ -9,7 +19,7 @@ class ReleaseNamer
     @proper = proper
     @text   = String.new
     for site in sites
-      source = open(site) { |f| f.read }
+      source = open(site, :allow_redirections => :safe) { |f| f.read }
       dom = Nokogiri.HTML(source)
       dom.css('head,script,style,code').map { |l| l.unlink }
       @text += dom.text
@@ -81,74 +91,49 @@ class ReleaseNamer
 
 end
 
-class CLIArgs
-
-  def sites
-
-    argument_length = ARGV.length
-    argument_offset = 0
-
-    if @proper_defined == true
-      argument_offset += 1
-    end
-
-    if @repeater_defined == true
-      argument_offset += 1
-    end
-
-    sites = Array.new
-
-    while ARGV[argument_offset]
-      sites << ARGV[argument_offset]
-      argument_offset += 1
-    end
-
-    return false if sites.length == 0
-    return sites
-
-  end
-
-  def proper_name
-
-    arg = ARGV.find { |x| x.match(/proper/) }
-    
-    if arg.nil?
-      @proper_defined = false
-      return arg
-    else
-      @proper_defined = true
-      return !!arg.split(/=/).last
-    end
-  
-  end
-
-  def repeater
-  
-    arg = ARGV.find { |x| x.match(/suggestions/) }
-  
-    if arg.nil?
-      @repeater_defined = false
-      return arg
-    else
-      @repeater_defined = true
-      return arg.split(/=/).last.to_i
-    end
-  
-  end
-
-end
-
 def main
 
-  cliargs = CLIArgs.new
+  opts = {}
+  optparse = OptionParser.new do|o|
+    o.banner = "Usage:\n"+
+      "  release-namer [options] [--] [<url-resources>]...\n\n"+
+      "Example:\n"+
+      "  release-namer --count=20 -P \"https://en.wikipedia.org/wiki/Computer_science\" \"https://en.wikipedia.org/wiki/Art\"\n\n"+
+      "Options:"
 
-  do_it  = cliargs.repeater    || 1
-  proper = cliargs.proper_name || false
-  sites  = cliargs.sites       || Array.new.push('http://en.wikipedia.org/wiki/Special:Random')
+    opts[:count] = 1
+    o.on('-c', '--count INT', 'Number of results to return.') do|count|
+      opts[:count] = count.to_i
+    end
 
-  namer = ReleaseNamer.new(sites, proper)
+    opts[:proper] = false
+    o.on('-P', '--proper', 'Include a proper noun in results.') do
+      opts[:proper] = true
+    end
 
-  do_it.times do |_x|
+    o.on('-h', '--help', 'Display this help message.') do
+      puts o
+      exit 255
+    end
+
+    o.on('-v', '--version', 'Show script version string.') do
+      puts "release-namer v0.1.0"
+      exit 0
+    end
+  end
+
+  optparse.parse!
+
+  opts[:sites] = Array.new
+  ARGV.each do|s|
+    opts[:sites] << s
+  end
+
+  opts[:sites] << 'http://en.wikipedia.org/wiki/Special:Random' if opts[:sites].length == 0
+
+  namer = ReleaseNamer.new(opts[:sites], opts[:proper])
+
+  opts[:count].times do |_x|
     puts namer.suggestion
   end
 
