@@ -1,5 +1,7 @@
 source 'https://rubygems.org'
 
-gem 'rbtagger'
+gem 'commander'
+gem 'engtagger'
 gem 'open_uri_redirections'
 gem 'nokogiri'
+gem 'json'
