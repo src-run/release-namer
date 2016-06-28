@@ -41,7 +41,7 @@ class OptionModifiers < Option
   end
 end
 
-class ArgumentLinkSources
+class LinkSources
   def initialize
     @links = Array.new
     @default = ['http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random']
@@ -76,7 +76,8 @@ class ArgumentLinkSources
 end
 
 class Generator
-  def initialize(modifiers)
+  def initialize(links, modifiers)
+    @links = links
     @modifiers = modifiers
     @separator = String.new
     @suggestions = Array.new
@@ -88,7 +89,7 @@ class Generator
     words = Array.new
 
     @modifiers.enabled.each { |m|
-      types = @tags.select { |k,v| v == m.to_s }
+      types = tags.select { |k,v| v == m.to_s }
       types = types.keys
       words << types[rand(types.size - 1)]
     }
@@ -96,21 +97,11 @@ class Generator
     words.join(@separator)
   end
 
-  def suggestions(links, number)
-    @tags = Hash[tagger.tag(link_text(links).join(' '))]
-
-    i = 0
-    while i < number
-      result = suggest
-      next if @suggestions.include?(result)
-      @suggestions << result
-      i += 1
-    end
-
-    @suggestions
-  end
-
   private
+
+  def tags
+    @tags ||= Hash[tagger.tag(link_text(links).join(' '))]
+  end
 
   def tagger
     @tagger ||= Brill::Tagger.new
@@ -130,7 +121,7 @@ class Generator
   end
 end
 
-class ResultWriter
+class Writer
   def initialize(links, modifiers)
     @links = links
     @modifiers = modifiers
@@ -188,11 +179,11 @@ class Application
   include Commander::Methods
 
   def initialize
-    @formatter = OptionFormat.new
+    @format = OptionFormat.new
     @modifiers = OptionModifiers.new
-    @generator = Generator.new @modifiers
-    @links = ArgumentLinkSources.new
-    @writer = ResultWriter.new @links, @modifiers
+    @links = LinkSources.new
+    @generator = Generator.new @links, @modifiers
+    @writer = Writer.new @links, @modifiers
   end
 
   def run
@@ -230,10 +221,17 @@ class Application
         parse_opts options
         parse_args args
 
-        suggestions = @generator.suggestions @links, options.results
+        suggestions = Array.new
+        i = 0
+        while i < options.results
+          s = @generator.suggest
+          next if suggestions.include?(s)
+          suggestions << s
+          i += 1
+        end
 
         @writer.data(suggestions)
-        @writer.write_as(@formatter.enabled)
+        @writer.write_as(@format.enabled)
       end
     end
 
@@ -247,13 +245,13 @@ class Application
 
   def say_formats
     puts "TYPE  DESCRIPTION\n----  -----------"
-    @formatter.listing.each { |f, desc| puts sprintf('%4s  %s', f, desc) }
+    @format.listing.each { |format, desc| puts sprintf('%4s  %s', format, desc) }
     exit
   end
 
   def say_modifiers
     puts "TYPE  DESCRIPTION\n----  -----------"
-    @modifiers.listing.each { |m, desc| puts sprintf('%4s  %s', m, desc) }
+    @modifiers.listing.each { |modifier, desc| puts sprintf('%4s  %s', modifier, desc) }
     exit
   end
 
@@ -261,23 +259,22 @@ class Application
     say_formats if o.list_formats
     say_modifiers if o.list_modifiers
 
-    @modifiers.enabled = @modifiers.default if o.modifiers.length == 0
-    @formatter.enabled = o.format.downcase.intern
     @generator.separator = o.separator
 
-    unless @formatter.listing.include?(@formatter.enabled)
-      say_error "Error: Invalid option provided as output formatter: #{o.format}"
+    @format.enabled = o.format.downcase.intern
+    unless @format.listing.include?(@format.enabled)
+      say_error "Error: Invalid option provided as output format: #{o.format}"
       say_formats
     end
 
+    @modifiers.enabled = @modifiers.default if o.modifiers.length == 0
     o.modifiers.each do |m|
       m.upcase!
-      m = m.intern
-      unless @modifiers.listing.include?(m)
+      unless @modifiers.listing.include?(m.intern)
         say_error "Error: Invalid option provided as modifier: #{m}"
         say_modifiers
       end
-      @modifiers.add(m)
+      @modifiers.add(m.intern)
     end
   end
 
