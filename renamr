@@ -50,36 +50,44 @@ class LinkSources
   attr_accessor :default
 
   def add(links)
-    @links << links unless @links.include?(links)
+    @links << links
   end
 
   def text
-    @text ||= link_text
+    clean_contents(link_contents).join(' ')
   end
 
   private
 
-  def link_text
-    @links = @default if @links.length == 0
-    text = String.new
+  def dictionary
+    @dict ||= FFI::Hunspell.dict('en_US')
+  end
 
-    for s in @links
-      links = open(s, :allow_redirections => :safe) { |f| f.read }
-      dom = Nokogiri.HTML(links)
+  def clean_contents(text)
+    text.reject! { |word| word.length < 4 }
+    text.keep_if { |word| word =~ /^[a-z]+$/i }
+    text.keep_if { |word| dictionary.check?(word) }
+    text.map! { |word| word.downcase }
+    text.uniq
+  end
+
+  def link_contents
+    txt = String.new
+
+    for link in @links
+      web = open(link, :allow_redirections => :safe) { |f| f.read }
+      dom = Nokogiri.HTML(web)
       dom.css('head,script,style,code').map { |l| l.unlink }
-      text += dom.text
+      txt += dom.text
     end
 
-    text
+    txt.words
   end
 end
 
 class Generator
   def initialize(links, modifiers)
-    @links = links
-    @modifiers = modifiers
-    @separator = String.new
-    @suggestions = Array.new
+    @links, @modifiers, @separator, @suggestions = links, modifiers, String.new, Array.new
   end
 
   attr_writer :separator
@@ -87,25 +95,26 @@ class Generator
   def suggest
     words = Array.new
 
-    @modifiers.enabled.each { |m|
+    @modifiers.enabled.each do |m|
       types = tags.select { |k,v| v == m.to_s }
       types = types.keys
       words << types[rand(types.size - 1)]
-    }
+    end
 
     words.join(@separator)
   end
 
   def suggestions(count)
-    suggestions = Array.new
-    i = j = 0
+    i, j, limit, suggestions = 0, -1, count * 2, Array.new
 
     while i < count
+      break if j > limit
       j += 1
-      s = suggest
-      break if j > count * 2
-      next if suggestions.include?(s)
-      suggestions << s
+
+      possible_suggestion = suggest
+      next if suggestions.include?(possible_suggestion)
+
+      suggestions << possible_suggestion
       i += 1
     end
 
@@ -115,77 +124,90 @@ class Generator
   private
 
   def tags
-    @tags ||= Hash[tagger.tag(link_text.join(' '))]
-  end
-
-  def tagger
-    @tagger ||= Brill::Tagger.new
-  end
-
-  def dict
-    @dict ||= FFI::Hunspell.dict('en_US')
-  end
-
-  def link_text
-    text = @links.text.words
-    text.reject! { |word| word.length < 4 }
-    text.keep_if { |word| word =~ /^[a-z]+$/i }
-    text.keep_if { |word| dict.check?(word) }
-    text.map! { |word| word.downcase }
-    text.uniq
+    @tags ||= Hash[Brill::Tagger.new.tag(@links.text)]
   end
 end
 
 class Writer
-  def initialize(links, modifiers)
-    @links = links
-    @modifiers = modifiers
+  def initialize(links, modifiers, format)
+    @links, @modifiers, @format, @verbose = links, modifiers, format, false
   end
 
-  def data(suggestions)
+  attr_accessor :verbose
+
+  def write(suggestions)
     @suggestions = suggestions
+
+    write_opts_verbose
+    write_args_verbose
+    write_title_verbose 'Suggestions'
+
+    case @format.enabled
+      when :json
+        write_format_json
+      when :yaml
+        write_format_yaml
+      when :csv
+        write_format_csv
+      else
+        write_format_text
+    end
   end
 
-  def write_as(format)
-    case format
-      when :json
-        write_json
-      when :yaml
-        write_yaml
-      when :csv
-        write_csv
-      else
-        write_text
-    end
+  def write_line(text)
+    puts text
   end
 
   private
 
-  def write_text
-    @suggestions.each { |line| puts line }
+  def write_opts_verbose
+    write_title_verbose 'Config Modifiers'
+    @modifiers.enabled.each { |m| write_line_verbose sprintf '- %s', m }
   end
 
-  def write_csv
+  def write_args_verbose
+    write_title_verbose 'Source Links'
+    @links.links.each { |l| write_line_verbose sprintf '- %s', l }
+  end
+
+  def write_title_verbose(text)
+    write_line_verbose sprintf '%s:', text.upcase
+  end
+
+  def write_line_verbose(text)
+    write_line text if @verbose && (@format.enabled == :text || @format.enabled == :csv)
+  end
+
+  def write_format_text
+    @suggestions.each do |line|
+      line = sprintf '- %s', line if @verbose
+      write_line line
+    end
+  end
+
+  def write_format_csv
     @suggestions.map! { |r| sprintf '"%s"', r }
-    puts @suggestions.join(',')
+    write_line @suggestions.join(',')
   end
 
-  def write_yaml
-    puts YAML::dump(suggestions_object)
+  def write_format_yaml
+    write_line YAML::dump(get_write_object)
   end
 
-  def write_json
-    puts JSON::generate(suggestions_object)
+  def write_format_json
+    write_line JSON::generate(get_write_object)
   end
 
-  def suggestions_object
+  def get_write_object
     result_object = Hash.new
-    result_object['config'] = Hash.new
-    result_object['config']['links'] = @links.links
-    result_object['config']['modifiers'] = Array.new
-    @modifiers.enabled.each { |m| result_object['config']['modifiers'] << m.to_s }
-    result_object['suggestions'] = @suggestions
 
+    if @verbose
+      result_object['config_modifiers'] = Array.new
+      result_object['config_links'] = @links.links
+      @modifiers.enabled.each { |m| result_object['config_modifiers'] << m.to_s }
+    end
+
+    result_object['suggestions'] = @suggestions
     result_object
   end
 end
@@ -200,73 +222,53 @@ class Application
     @modifiers = OptionModifiers.new
     @links = LinkSources.new
     @generator = Generator.new @links, @modifiers
-    @writer = Writer.new @links, @modifiers
+    @writer = Writer.new @links, @modifiers, @format
+    @verbose = false
   end
 
   def run
-    program :name, "renamr"
     program :version, VERSION
     program :description, 'Utility to return a randomly generated list of possible "release names" using different links to create the dictionary of words used.'
     program :help, 'Authors', 'Rob Frawley 2nd <rmf@src.run>, Dan Corrigan <dfc@scribenet.com>'
     program :help, 'License', 'MIT License (https://rmf.mit-license.org)'
 
+    global_option('-V', '--verbose', 'Enable verbose output') { @verbose = @writer.verbose = true }
+
     command :suggest do |c|
-      c.syntax = "renamr #{c.name} [options] -- [<links>]..."
       c.summary = 'Generate word combinations based on requested options'
       c.description = 'Generate word combination suggestions by fetching passed url(s) and parsing their text contents for the set of words used.'
-
-      c.example 'return two results using custom url', \
-        "renamr #{c.name} --results 2 'https://wikipedia.org/LED'"
-      c.example 'output 20 results as json using custom modifiers', \
-        "renamr #{c.name} --results 20 --modifiers NN,JJ --format json"
+      c.syntax = 'renamr suggest [options] -- [<links>]...'
+      c.example 'return two results using custom url', 'renamr suggest --results 2 "https://wikipedia.org/LED"'
+      c.example 'output 20 results as json using custom modifiers', 'renamr suggest --results 20 --modifiers NN,JJ --format json'
 
       c.option '-r', '--results INT', Integer, 'Number of result entried to generate'
       c.option '-f', '--format STRING', String, 'Format of returned results'
-      c.option '-F', '--list-formats', 'List available output formats'
       c.option '-m', '--modifiers ARRAY', Array, 'Modifiers for result generation as Penn Treebank tags'
-      c.option '-M', '--list-modifiers', 'List available modifier tags'
       c.option '-s', '--separator STRING', String, 'Value placed between modifier tags'
+      c.option '-F', '--list-formats', 'List available output formats'
+      c.option '-M', '--list-modifiers', 'List available modifier tags'
 
       c.action do |args, options|
-        options.default \
-          :verbose => false,
-          :results => 1,
-          :separator => '-',
-          :format => 'text',
-          :modifiers => @modifiers.default
+        options.default :verbose => false, :results => 10, :separator => '-', :format => 'text', :modifiers => @modifiers.default
 
         parse_opts options
         parse_args args
 
         data = @generator.suggestions options.results
-        say_warning 'Not enough input variance to generate requested number of results!' if data.length < options.results
+        @writer.write data
 
-        @writer.data data
-        @writer.write_as @format.enabled
+        say_warning "Insufficient source variance to generate #{options.results} unique results; created only #{data.length}!" if data.length < options.results
       end
     end
 
     default_command :suggest
-
     run!
-
   end
 
   private
 
-  def say_formats
-    puts "TYPE  DESCRIPTION\n----  -----------"
-    @format.listing.each { |format, desc| puts sprintf('%4s  %s', format, desc) }
-    exit
-  end
-
-  def say_modifiers
-    puts "TYPE  DESCRIPTION\n----  -----------"
-    @modifiers.listing.each { |modifier, desc| puts sprintf('%4s  %s', modifier, desc) }
-    exit
-  end
-
   def parse_opts(o)
+    say_help if o.help
     say_formats if o.list_formats
     say_modifiers if o.list_modifiers
 
@@ -291,6 +293,26 @@ class Application
   def parse_args(args)
     args.each { |a| @links.add(a) }
     @links.links = @links.default if @links.links.length == 0
+  end
+
+  def say_formats
+    say_formats_or_modifiers @format.listing
+  end
+
+  def say_modifiers
+    say_formats_or_modifiers @modifiers.listing
+  end
+
+  def say_formats_or_modifiers(hash)
+    @writer.write_line "TYPE  DESCRIPTION"
+    @writer.write_line "----  -----------"
+    hash.each { |k, v| @writer.write_line sprintf '%4s  %s', k, v }
+    exit
+  end
+
+  def say_help
+    command(:help).run([:suggest])
+    exit
   end
 end
 
