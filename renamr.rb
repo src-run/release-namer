@@ -210,14 +210,14 @@ class Application
     program :help, 'License', 'MIT License (https://rmf.mit-license.org)'
 
 		command :suggest do |c|
-      c.syntax = "renam #{c.name} [options] -- [<links>]..."
+      c.syntax = "renamr #{c.name} [options] -- [<links>]..."
       c.summary = 'Generate word combination suggestions.'
       c.description = 'Generate word combination suggestions by fetching passed url(s) and parsing their text contents for the set of words used.'
 
       c.example 'return two results using custom url', \
-        "renam #{c.name} --results 2 'https://wikipedia.org/LED'"
+        "renamr #{c.name} --results 2 'https://wikipedia.org/LED'"
       c.example 'output 20 results as json using custom modifiers', \
-        "renam #{c.name} --results 20 --modifiers NN,JJ --format json"
+        "renamr #{c.name} --results 20 --modifiers NN,JJ --format json"
 
       c.option '-r', '--results INT', Integer, 'Number of result entried to generate'
       c.option '-f', '--format STRING', String, 'Format of returned results'
