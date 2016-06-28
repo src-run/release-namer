@@ -33,7 +33,7 @@ class OptionModifiers < Option
   def initialize
     super
     @listing = {:CC => 'conjunction', :DT => 'determiner', :IN => 'preposition', :JJ => 'adjective', :NN => 'noun', :NNS => 'noun plural', :NNP => 'noun proper', :NNPS => 'noun proper plural', :RB => 'adverb', :UH => 'interjection', :VB => 'verb', :VBD => 'verb past tense', :VBG => 'verb present participle', :VBN => 'verb past participle'}
-    @default = [:JJ, :NN]
+    @default = [:RB, :JJ, :NN]
   end
 
   def add(mod)
@@ -97,10 +97,26 @@ class Generator
     words.join(@separator)
   end
 
+  def suggestions(count)
+    suggestions = Array.new
+    i = j = 0
+
+    while i < count
+      j += 1
+      s = suggest
+      break if j > count * 2
+      next if suggestions.include?(s)
+      suggestions << s
+      i += 1
+    end
+
+    suggestions
+  end
+
   private
 
   def tags
-    @tags ||= Hash[tagger.tag(link_text(links).join(' '))]
+    @tags ||= Hash[tagger.tag(link_text.join(' '))]
   end
 
   def tagger
@@ -111,8 +127,8 @@ class Generator
     @dict ||= FFI::Hunspell.dict('en_US')
   end
 
-  def link_text(links)
-    text = links.text.words
+  def link_text
+    text = @links.text.words
     text.reject! { |word| word.length < 4 }
     text.keep_if { |word| word =~ /^[a-z]+$/i }
     text.keep_if { |word| dict.check?(word) }
@@ -216,22 +232,16 @@ class Application
           :results => 1,
           :separator => '_',
           :format => 'text',
-          :modifiers => %w(JJ NN)
+          :modifiers => @modifiers.default
 
         parse_opts options
         parse_args args
 
-        suggestions = Array.new
-        i = 0
-        while i < options.results
-          s = @generator.suggest
-          next if suggestions.include?(s)
-          suggestions << s
-          i += 1
-        end
+        data = @generator.suggestions options.results
+        say_warning 'Not enough input variance to generate requested number of results!' if data.length < options.results
 
-        @writer.data(suggestions)
-        @writer.write_as(@format.enabled)
+        @writer.data data
+        @writer.write_as @format.enabled
       end
     end
 
@@ -269,12 +279,11 @@ class Application
 
     @modifiers.enabled = @modifiers.default if o.modifiers.length == 0
     o.modifiers.each do |m|
-      m.upcase!
-      unless @modifiers.listing.include?(m.intern)
+      unless @modifiers.listing.include?(m.upcase.intern)
         say_error "Error: Invalid option provided as modifier: #{m}"
         say_modifiers
       end
-      @modifiers.add(m.intern)
+      @modifiers.add(m.upcase.intern)
     end
   end
 
