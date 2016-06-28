@@ -211,9 +211,8 @@ class Application
     program :help, 'License', 'MIT License (https://rmf.mit-license.org)'
 
     command :suggest do |c|
-      c.name = 'renamr:suggest'
       c.syntax = "renamr #{c.name} [options] -- [<links>]..."
-      c.summary = 'Generate word combination suggestions.'
+      c.summary = 'Generate word combinations based on requested options'
       c.description = 'Generate word combination suggestions by fetching passed url(s) and parsing their text contents for the set of words used.'
 
       c.example 'return two results using custom url', \
