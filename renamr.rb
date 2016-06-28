@@ -209,7 +209,7 @@ class Application
     program :help, 'Authors', 'Rob Frawley 2nd <rmf@src.run>, Dan Corrigan <dfc@scribenet.com>'
     program :help, 'License', 'MIT License (https://rmf.mit-license.org)'
 
-		command :suggest do |c|
+    command :suggest do |c|
       c.syntax = "renamr #{c.name} [options] -- [<links>]..."
       c.summary = 'Generate word combination suggestions.'
       c.description = 'Generate word combination suggestions by fetching passed url(s) and parsing their text contents for the set of words used.'
