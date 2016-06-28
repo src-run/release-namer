@@ -193,6 +193,8 @@ end
 class Application
   include Commander::Methods
 
+  VERSION = '1.0.0'
+
   def initialize
     @format = OptionFormat.new
     @modifiers = OptionModifiers.new
@@ -202,13 +204,14 @@ class Application
   end
 
   def run
-    program :name, 'RENAM'
-    program :version, '1.0.0'
+    program :name, "renamr"
+    program :version, VERSION
     program :description, 'Utility to return a randomly generated list of possible "release names" using different links to create the dictionary of words used.'
     program :help, 'Authors', 'Rob Frawley 2nd <rmf@src.run>, Dan Corrigan <dfc@scribenet.com>'
     program :help, 'License', 'MIT License (https://rmf.mit-license.org)'
 
     command :suggest do |c|
+      c.name = 'renamr:suggest'
       c.syntax = "renamr #{c.name} [options] -- [<links>]..."
       c.summary = 'Generate word combination suggestions.'
       c.description = 'Generate word combination suggestions by fetching passed url(s) and parsing their text contents for the set of words used.'
