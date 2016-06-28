@@ -33,7 +33,7 @@ class OptionModifiers < Option
   def initialize
     super
     @listing = {:CC => 'conjunction', :DT => 'determiner', :IN => 'preposition', :JJ => 'adjective', :NN => 'noun', :NNS => 'noun plural', :NNP => 'noun proper', :NNPS => 'noun proper plural', :RB => 'adverb', :UH => 'interjection', :VB => 'verb', :VBD => 'verb past tense', :VBG => 'verb present participle', :VBN => 'verb past participle'}
-    @default = [:RB, :JJ, :NN]
+    @default = [:JJ, :NN, :VBD]
   end
 
   def add(mod)
@@ -44,7 +44,7 @@ end
 class LinkSources
   def initialize
     @links = Array.new
-    @default = ['http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random']
+    @default = ['http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random', 'http://en.wikipedia.org/wiki/Special:Random']
   end
 
   attr_accessor :links
@@ -230,7 +230,7 @@ class Application
         options.default \
           :verbose => false,
           :results => 1,
-          :separator => '_',
+          :separator => '-',
           :format => 'text',
           :modifiers => @modifiers.default
 
